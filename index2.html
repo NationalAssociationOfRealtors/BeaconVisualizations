@@ -34,6 +34,30 @@
         <div id="map"></div>
         <script>
 			$('#map').height($(window).height());
+			var beacon_list = [];
+			var heatmap_data = {
+				max: 20,
+				data: []
+			}
+			var cfg = {
+				// radius should be small ONLY if scaleRadius is true (or small radius is intended)
+				// if scaleRadius is false it will be the constant radius used in pixels
+				"radius": 50,
+				"maxOpacity": .8,
+				// scales the radius based on map zoom
+				"scaleRadius": false,
+				// if set to false the heatmap uses the global maximum for colorization
+				// if activated: uses the data maximum within the current map boundaries
+				//   (there will always be a red spot with useLocalExtremas true)
+				"useLocalExtrema": true,
+				// which field name in your data represents the latitude - default "lat"
+				latField: 'lat',
+				// which field name in your data represents the longitude - default "lng"
+				lngField: 'lng',
+				// which field name in your data represents the data value - default "value"
+				valueField: 'count'
+			};
+			var heatmapLayer = new HeatmapOverlay(cfg);
 			var carto_light = 'http://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png';
 			var carto_dark = "http://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png";
 			var osm = 'http://{s}.tile.osm.org/{z}/{x}/{y}.png';
@@ -116,30 +140,6 @@
 	            });
 			});
 
-			var testData = {
-			  max: 8,
-			  data: [{lat: 41.888739, lng:-87.635970, count: 5}, {lat:41.888715, lng:-87.636067, count: 5}, {lat: 41.888898, lng:-87.635444, count: 5}, {lat: 41.888531, lng:-87.636410, count: 5}]
-			};
-
-			var cfg = {
-			  // radius should be small ONLY if scaleRadius is true (or small radius is intended)
-			  // if scaleRadius is false it will be the constant radius used in pixels
-			  "radius": 50,
-			  "maxOpacity": .8,
-			  // scales the radius based on map zoom
-			  "scaleRadius": false,
-			  // if set to false the heatmap uses the global maximum for colorization
-			  // if activated: uses the data maximum within the current map boundaries
-			  //   (there will always be a red spot with useLocalExtremas true)
-			  "useLocalExtrema": true,
-			  // which field name in your data represents the latitude - default "lat"
-			  latField: 'lat',
-			  // which field name in your data represents the longitude - default "lng"
-			  lngField: 'lng',
-			  // which field name in your data represents the data value - default "value"
-			  valueField: 'count'
-			};
-
 			function addHeatMap(){
 				add_beacons();
 			}
@@ -160,12 +160,9 @@
 					console.log(data);
 					var beacons = new L.layerGroup();
 					var beacon_icon = new L.divIcon({className: 'beacon-icon'});
-					var heatmap_data = {
-						max: 10,
-						data: []
-					}
-					for(var b in data[0].beacons){
-						var beacon = data[0].beacons[b];
+					beacon_list = data[0].beacons;
+					for(var b in beacon_list){
+						var beacon = beacon_list[b];
 						var x = (beacon.x/4)-33;
 						var y = (beacon.y/4)-194;
 						var x_meters = x*x_mult;
@@ -174,16 +171,28 @@
 						var dy =  y_meters/1000;
 						var new_latitude  = latitude  - (dy / r_earth) * (180 / Math.PI);
 						var new_longitude = longitude + (dx / r_earth) * (180 / Math.PI) / Math.cos(latitude * Math.PI/180);
+						beacon.lat = new_latitude;
+						beacon.lng = new_longitude;
 						beacons.addLayer(new L.marker([new_latitude, new_longitude], {icon:beacon_icon}));
-						console.log(beacon.screen_width)
-						console.log(new_latitude, new_longitude);
 						heatmap_data.data.push({lat:new_latitude, lng:new_longitude, count:Math.floor(Math.random()*10)});
 					}
 					beacons.addTo(map);
-					var heatmapLayer = new HeatmapOverlay(cfg);
 					heatmapLayer.addTo(map);
 					heatmapLayer.setData(heatmap_data);
+					update_beacons();
 				});
+			}
+			var next = (new Date).getTime();
+			function update_beacons(){
+				requestAnimationFrame(update_beacons);
+				if((new Date).getTime() < next) return;
+				next+=100;
+				for(var i in heatmap_data.data){
+					var m = Math.round(Math.random()) ? 1 : -1;
+					var h = heatmap_data.data[i];
+					h.count+=m;
+				}
+				heatmapLayer.setData(heatmap_data);
 			}
 
 
